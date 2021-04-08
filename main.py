@@ -32,6 +32,9 @@ def get_data():
     #TODO load and process data  
     data_dir = os.path.join('.', None) #TODO
 
+def label_data():
+    #some silly "dummy" label
+
 def initialize_A():
     #defining A as K.sequential()
 
@@ -54,12 +57,8 @@ def train_step(A, B, C, x, y, optimizer):
     with tf.gradientTape() as tape:
         predictions = C(tf.concat(A(x[:,0:blah]), B(x[:,blah+1:])), axis=0) #TODO set blah
         pass_loss = loss(predictions, y)
-    A_gradients = tape.gradient(pass_loss, A.trainable_variables)
-    B_gradients = tape.gradient(pass_loss, B.trainable_variables)
-    C_gradients = tape.gradient(pass_loss, C.trainable_variables)
-    optimizer.apply_gradients(zip(A_gradients, A.trainable_variables))
-    optimizer.apply_gradients(zip(B_gradients, B.trainable_variables))
-    optimizer.apply_gradients(zip(C_gradients, C.trainable_variables))
+    gradients = tape.gradient(pass_loss, A.trainable_variables+B.trainable_variables+C.trainable_variables)
+    optimizer.apply_gradients(zip(gradients, A.trainable_variables+B.trainable_variables+C.trainable_variables))
     
     return pass_loss
 
