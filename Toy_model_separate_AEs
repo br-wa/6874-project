@@ -1,0 +1,311 @@
+import os
+import platform
+import random
+import shutil
+import sys
+import functools
+import itertools as it
+import copy
+
+import numpy as np
+import pandas as pd
+import sklearn.metrics
+import h5py
+
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+import tensorflow as tf
+import tensorflow.keras as K
+
+from sklearn.manifold import TSNE
+
+n_TFs = 31
+n_cells = 96
+n_peaks = 250
+
+Shrink_amount=1
+
+training_set = None #should have shape [n_TFs, n_cells, n_peaks]
+training_labels = None
+test_set = None
+test_labels = None
+
+#hyperparams, will tune eventually
+num_epochs = 25
+batch_size = 100
+learning_rate = 0.005
+
+#For consistency let's check the python version
+print('Python version: {}'.format(platform.sys.version))
+
+# Let's also check the Tensorflow version
+tf_version = tf.__version__
+print('TensorFlow version: {}'.format(tf_version))
+assert int(tf_version[0]) >= 2, "Tensorflow version must be >= 2.0"
+
+#Functions
+
+def get_data():
+    #TODO load and premute data into desired shape  
+    data_dir = os.path.join('.', None) #TODO
+    data=np.load(data_dir)
+    
+
+def label_data(data):
+    labels=data
+    return labels
+
+def prep_cell_data(data): #I just wanted to be sure I knew where every probability was going
+    #allCells.npy data is in form cells x TFs x Peaks
+    data_2D=[]
+    for i in range(train_set.shape[1]):
+        current = train_set[:, i, :]
+        flat=np.array([current.flatten()]) #This gives TFs peak 1, TF peak 2, ....
+        data_2D.append(flat)
+    data_2D=np.asarray(data_2D)   
+    data_2D=np.reshape(data_2D, (n_cells, -1))
+    return data_2D
+    
+def prep_TF_data(data): #I just wanted to be sure I knew where every probability was going
+    data_2D=[]
+    for i in range(train_set.shape[0]):
+        current = train_set[i, :, :]
+        flat=np.array([current.flatten()]) #This gives TFs peak 1, TF peak 2, ....
+        data_2D.append(flat)
+    data_2D=np.asarray(data_2D)   
+    data_2D=np.reshape(data_2D, (n_TFs, -1))
+    return data_2D
+    
+def visualize(data):
+    """
+    Input: np.array with shape (m,n)
+    """
+    if len(data[:,0]) > 50:
+        pca = PCA(n_components=50)
+        data_pca = pca.fit_transform(data) #Using PCA to decrease dimensionality for tSNE
+    else:
+        data_pca=data
+    data_embedded = TSNE(n_components=2).fit_transform(data_pca)
+    print(data_embedded.shape)
+
+    plt.figure(0)
+    plt.plot(data_embedded[:,0], data_embedded[:,1], marker='.', ls='')
+    plt.title('t-SNE')
+    plt.legend()
+    plt.show()
+    
+def initialize_factorCompactor():
+    #defining A as K.Sequential()
+    A = K.Sequential()
+    A.add(
+        K.layers.Dense(
+            input_shape=(None, n_cells * n_peaks),
+            units=4,
+            activation='relu',
+            use_bias=True,
+            kernel_initializer='glorot_uniform',
+            bias_initializer='zeros'
+        )
+    )
+    A.add(
+        K.layers.Dense(
+            units=2,
+            activation='relu',
+            use_bias=True,
+            kernel_initializer='glorot_uniform',
+            bias_initializer='zeros'
+        )
+    )
+    return A
+
+def initialize_cellCompactor():
+    #defining B as K.Sequential(), just copying A for now
+    B = K.Sequential()
+    B.add(
+        K.layers.Dense(
+            input_shape=(None, n_TFs * n_peaks),
+            units=4,
+            activation='relu',
+            use_bias=True,
+            kernel_initializer='glorot_uniform',
+            bias_initializer='zeros'
+        ) 
+    )
+    B.add(
+        K.layers.Dense(
+            units=2,
+            activation='relu',
+            use_bias=True,
+            kernel_initializer='glorot_uniform',
+            bias_initializer='zeros'
+        )
+    )
+    return B
+
+
+def initialize_CellAE():
+    CellAE=K.Sequential()
+    CellAE.add(
+        K.layers.Dense(
+            input_shape=(None, n_TFs * n_peaks),
+            units=4*Shrink_amount,
+            activation='relu',
+            use_bias=True,
+            kernel_initializer='glorot_uniform',
+            bias_initializer='zeros'
+        ) 
+    )
+    CellAE.add(
+        K.layers.Dense(
+            units=2*Shrink_amount,
+            activation='relu',
+            use_bias=True,
+            kernel_initializer='glorot_uniform',
+            bias_initializer='zeros'
+        )
+    )
+    CellAE.add(
+        K.layers.Dense(
+            input_shape=(None, Shrink_amount*2),
+            units=n_TFs*n_peaks,
+            activation='softmax',
+            use_bias=True,
+            kernel_initializer='glorot_uniform',
+            bias_initializer='zeros'
+        ) 
+    )
+    return CellAE
+
+def initialize_TFAE():
+    TFAE=K.Sequential()
+    TFAE.add(
+        K.layers.Dense(
+            input_shape=(None, n_cells * n_peaks),
+            units=4*Shrink_amount,
+            activation='relu',
+            use_bias=True,
+            kernel_initializer='glorot_uniform',
+            bias_initializer='zeros'
+        ) 
+    )
+    CellAE.add(
+        K.layers.Dense(
+            units=2*Shrink_amount,
+            activation='relu',
+            use_bias=True,
+            kernel_initializer='glorot_uniform',
+            bias_initializer='zeros'
+        )
+    )
+    CellAE.add(
+        K.layers.Dense(
+            input_shape=(None, 2*Shrink_amount),
+            units=n_n_cells * n_peaks,
+            activation='softmax',
+            use_bias=True,
+            kernel_initializer='glorot_uniform',
+            bias_initializer='zeros'
+        ) 
+    )
+    return CellAE
+    
+    
+
+def loss(predictions, y, weights):
+    mse=tf.keras.losses.MeanSquaredError()
+    loss=mse(y, predictions, weights).numpy()
+    
+    
+def model_weights(model):
+    weight_list = []
+    for layer in model.layers:
+        layer_w=model.get_weights()
+        weight_list.append(layer_w)  
+    weights = tf.concat([K.backend.flatten(w) for w in weight_list], 
+                        axis=0)
+    return weights
+    
+
+    
+def train_step(inputs, labels, model, opt, loss_func, training=None):
+    with tf.GradientTape() as tape:
+        predictions = model(inputs)
+        pred_loss = loss_func(predictions, labels, model_weights(model)) 
+    
+    gradients = tape.gradient(pred_loss, model.trainable_variables)
+    opt.apply_gradients(zip(gradients, model.trainable_variables))
+    return pred_loss
+
+
+def Branch_train(model,                 #Handwritten training module
+                  train_inputs,
+                  train_labels,
+                  learning_rate,
+                  batch_size, 
+                  num_epochs):
+    
+    epoch_pbar = tqdm(total=num_epochs, desc="Training Epochs")
+    batch_pbar = tqdm(desc="Training Steps")
+    optimizer = tf.optimizers.RMSprop(learning_rate=learning_rate, rho=0.9)
+    #loss=loss(model(train_inputs), train_labels, model_weights(model))
+    train_step_graph = tf.function(train_step)
+    model.compile(optimizer, loss)
+    for _ in range(num_epochs):
+        total_batch = int(np.floor(train_inputs.shape[0] / batch_size))
+    
+        batch_pbar.reset(total_batch)
+        for step in range(total_batch):
+            range_begin = (step * batch_size) % (train_inputs.shape[0] - batch_size)
+            range_end = range_begin + batch_size
+            batch_x = train_inputs[range_begin:range_end, :]
+            batch_y = train_labels[range_begin:range_end]
+            epoch_loss = train_step_graph(batch_x, batch_y, 
+                                          model, 
+                                          optimizer, 
+                                          loss,
+                                          training=True)
+            batch_pbar.update()
+    
+        tf.print("epoch: {:02d}, loss: {:5.3f}".format(epoch + 1, epoch_loss))
+        batch_pbar.refresh()
+        epoch_pbar.update()
+        
+def built_in_train(model, x_train, y_train): #Training module using built in functions
+    model.compile(optimizer=tf.keras.optimizers.RMSprop(), loss=tf.keras.losses.MeanAbsoluteError())
+    history = model.fit(x_train, y_train, batch_size=25, epochs=15)
+
+
+def B_branch():
+    #get_data() 
+    train_set=np.load('allCells.npy')
+    prepped_train=prep_cell_data(train_set)
+    prepped_train=tf.convert_to_tensor(prepped_train, dtype=tf.float32)
+    labels=label_data(prepped_train)
+    prepped_labels=tf.convert_to_tensor(labels, dtype=tf.float32)
+    CellAE=initialize_CellAE()
+    built_in_train(CellAE,
+          x_train=prepped_train,
+          y_train=labels,
+          #learning_rate=learning_rate,
+          #batch_size=25, 
+          #num_epochs=15
+                )
+    return CellAE(prepped_train)
+
+def A_branch():
+    #get_data() 
+    train_set=np.load('allCells.npy')
+    prepped_train=prep_TF_data(train_set)
+    prepped_train=tf.convert_to_tensor(prepped_train, dtype=tf.float32)
+    labels=label_data(prepped_train)
+    prepped_labels=tf.convert_to_tensor(labels, dtype=tf.float32)
+    TFAE=initialize_TFAE()
+    built_in_train(CellAE,
+          x_train=prepped_train,
+          y_train=labels,
+          #learning_rate=learning_rate,
+          #batch_size=25, 
+          #num_epochs=15
+                )
+    return TFAE(prepped_train)
