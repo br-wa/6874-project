@@ -1,51 +1,3 @@
-import os
-import platform
-import random
-import shutil
-import sys
-import functools
-import itertools as it
-import copy
-
-import numpy as np
-import pandas as pd
-import sklearn.metrics
-import h5py
-
-import seaborn as sns
-import matplotlib.pyplot as plt
-
-import tensorflow as tf
-import tensorflow.keras as K
-
-from sklearn.manifold import TSNE
-
-n_TFs = 31
-n_cells = 96
-n_peaks = 250
-
-Shrink_amount=1
-
-training_set = None #should have shape [n_TFs, n_cells, n_peaks]
-training_labels = None
-test_set = None
-test_labels = None
-
-#hyperparams, will tune eventually
-num_epochs = 25
-batch_size = 100
-learning_rate = 0.005
-
-#For consistency let's check the python version
-print('Python version: {}'.format(platform.sys.version))
-
-# Let's also check the Tensorflow version
-tf_version = tf.__version__
-print('TensorFlow version: {}'.format(tf_version))
-assert int(tf_version[0]) >= 2, "Tensorflow version must be >= 2.0"
-
-#Functions
-
 def get_data():
     #TODO load and premute data into desired shape  
     data_dir = os.path.join('.', None) #TODO
@@ -119,7 +71,7 @@ def initialize_factorCompactor():
     )
     return A
 
-def initialize_cellCompactor():
+def initialize_cellCompactor(inputs):
     #defining B as K.Sequential(), just copying A for now
     B = K.Sequential()
     B.add(
@@ -162,7 +114,8 @@ def initialize_CellAE():
             activation='relu',
             use_bias=True,
             kernel_initializer='glorot_uniform',
-            bias_initializer='zeros'
+            bias_initializer='zeros',
+            name='latent'
         )
     )
     CellAE.add(
@@ -189,26 +142,27 @@ def initialize_TFAE():
             bias_initializer='zeros'
         ) 
     )
-    CellAE.add(
+    TFAE.add(
         K.layers.Dense(
             units=2*Shrink_amount,
             activation='relu',
             use_bias=True,
             kernel_initializer='glorot_uniform',
-            bias_initializer='zeros'
+            bias_initializer='zeros',
+            name='latent'
         )
     )
-    CellAE.add(
+    TFAE.add(
         K.layers.Dense(
             input_shape=(None, 2*Shrink_amount),
-            units=n_n_cells * n_peaks,
+            units=n_cells * n_peaks,
             activation='softmax',
             use_bias=True,
             kernel_initializer='glorot_uniform',
             bias_initializer='zeros'
         ) 
     )
-    return CellAE
+    return TFAE
     
     
 
@@ -274,7 +228,11 @@ def Branch_train(model,                 #Handwritten training module
 def built_in_train(model, x_train, y_train): #Training module using built in functions
     model.compile(optimizer=tf.keras.optimizers.RMSprop(), loss=tf.keras.losses.MeanAbsoluteError())
     history = model.fit(x_train, y_train, batch_size=25, epochs=15)
-
+    
+def built_in_test(model, x_test):
+    model.compile(optimizer=tf.keras.optimizers.RMSprop(), loss=tf.keras.losses.MeanAbsoluteError())
+    y_pred=model.predict(x_test, verbose=1)
+    return y_pred 
 
 def B_branch():
     #get_data() 
@@ -301,7 +259,7 @@ def A_branch():
     labels=label_data(prepped_train)
     prepped_labels=tf.convert_to_tensor(labels, dtype=tf.float32)
     TFAE=initialize_TFAE()
-    built_in_train(CellAE,
+    built_in_train(TFAE,
           x_train=prepped_train,
           y_train=labels,
           #learning_rate=learning_rate,
@@ -309,3 +267,9 @@ def A_branch():
           #num_epochs=15
                 )
     return TFAE(prepped_train)
+
+
+def latent_extraction(AEmodel):
+    feature_extractor = tf.keras.Model(inputs=AEmodel.inputs,
+                                       outputs=AEmodel.get_layer(name="latent").output,)
+    return feature_extractor
