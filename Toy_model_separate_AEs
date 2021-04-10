@@ -1,3 +1,41 @@
+import os
+import platform
+import random
+import shutil
+import sys
+import functools
+import itertools as it
+import copy
+
+import numpy as np
+import pandas as pd
+import sklearn.metrics
+import h5py
+
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+import tensorflow as tf
+import tensorflow.keras as K
+
+from sklearn.manifold import TSNE
+
+n_TFs = 31
+n_cells = 96
+n_peaks = 250
+
+Shrink_amount=1
+
+training_set = None #should have shape [n_TFs, n_cells, n_peaks]
+training_labels = None
+test_set = None
+test_labels = None
+
+#hyperparams, will tune eventually
+num_epochs = 25
+batch_size = 100
+learning_rate = 0.005
+
 def get_data():
     #TODO load and premute data into desired shape  
     data_dir = os.path.join('.', None) #TODO
