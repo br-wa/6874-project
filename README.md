@@ -3,5 +3,7 @@ Transcription factors (TF) are important mediators of gene expression, and under
 
 Architectures are names as follows:
 -Dual VAE: 
+
 -Brached VAE:
+
 -Branched VAE with meshing: branched VAE with a meshing layer so the encoded latent spaces are decoded by the same decoder
