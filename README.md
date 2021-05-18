@@ -3,7 +3,7 @@ Transcription factors (TF) are important mediators of gene expression, and under
 
 Architectures are names as follows:
 
--Two-stage VAE: VAE with two stages, that first encodes per-cell TF-specific binding, and then encodes TFs.
+-Two-stage VAE: Two VAEs; the first encodes per-cell TF-specific binding, and the second encodes TFs.
 
 -Brached VAE: branched VAE with decoder predicting per-cell TF-specific binding data based on encodings of a given cell and TF
 
