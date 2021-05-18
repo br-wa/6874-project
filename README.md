@@ -5,6 +5,6 @@ Architectures are names as follows:
 
 -Dual VAE: 
 
--Brached VAE:
+-Brached VAE: branched VAE with decoder predicting per-cell TF-specific binding data based on encodings of a given cell and TF
 
 -Branched VAE with meshing: branched VAE with a meshing layer so the encoded latent spaces are decoded by the same decoder
