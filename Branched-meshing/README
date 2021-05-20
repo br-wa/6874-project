@@ -1,0 +1,1 @@
+There are 3 versions to the branched meshing model, with branched_3.1 being an iteration for optimization and variational inference. Models 1 and 2 do not train well. 
